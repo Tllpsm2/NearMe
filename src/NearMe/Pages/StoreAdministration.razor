@@ -1,0 +1,130 @@
+@page "/storeadmin"
+
+@inject StoreLocationService StoreLocationService
+@using NearMe.Models
+@using NearMe.Services
+@using NetTopologySuite.Geometries
+@using Syncfusion.Blazor.Grids
+@using Syncfusion.Blazor.Inputs
+@inherits OwningComponentBase<NearMe.Services.StoreLocationService>
+<h3>Store Administration</h3>
+
+@if (!string.IsNullOrEmpty(_errorMessage))
+{
+    <div class="alert alert-danger alert-dismissible">
+        <strong>Error:</strong> @_errorMessage
+        <button type="button" class="btn-close" @onclick="() => _errorMessage = string.Empty"></button>
+    </div>
+}
+
+<div class="col-lg-12 control-section">
+    <div class="content-wrapper">
+        <div class="row">
+            <SfGrid DataSource="@storelocations" Toolbar="@(new List<string> { "Add", "Delete" })" AllowPaging="true">
+                <GridEvents OnActionBegin="ActionBeginHandler" TValue="StoreLocations"></GridEvents>
+                <GridEditSettings AllowAdding="true" AllowDeleting="true" Mode="@EditMode.Dialog" Dialog="DialogParams">
+                    <Template>
+                        @{
+                            var store = context as StoreLocations ?? new StoreLocations();
+                        }
+                        <div>
+                            <div class="form-row">
+                                <div class="form-group col-md-12">
+                                    <SfTextBox ID="LocationName" @bind-Value="@(store.LocationName)" TValue="string"
+                                               FloatLabelType="FloatLabelType.Always" Placeholder="Location Name">
+                                    </SfTextBox>
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group col-md-12">
+                                    <SfTextBox ID="LocationAddress" @bind-Value="@(store.LocationAddress)" TValue="string"
+                                               FloatLabelType="FloatLabelType.Always" Placeholder="Address">
+                                    </SfTextBox>
+                                </div>
+                            </div>
+                        </div>
+                    </Template>
+                </GridEditSettings>
+                <GridColumns>
+                    <GridColumn Field="@nameof(StoreLocations.Id)" HeaderText="Id" IsPrimaryKey="true"
+                                ValidationRules="@(new ValidationRules { Number = true })" Width="50">
+                    </GridColumn>
+                    <GridColumn Field="@nameof(StoreLocations.LocationName)" HeaderText="Location Name"
+                                ValidationRules="@(new ValidationRules { Required = true })" Width="150">
+                    </GridColumn>
+                    <GridColumn Field="@nameof(StoreLocations.LocationAddress)" HeaderText="Address"
+                                ValidationRules="@(new ValidationRules { Required = true })">
+                    </GridColumn>
+                    <GridColumn Field="@nameof(StoreLocations.LocationLatitude)" HeaderText="Latitude" Width="150">
+                    </GridColumn>
+                    <GridColumn Field="@nameof(StoreLocations.LocationLongitude)" HeaderText="Longitude" Width="150">
+                    </GridColumn>
+                </GridColumns>
+            </SfGrid>
+        </div>
+    </div>
+</div>
+
+@code {
+    List<StoreLocations> storelocations = new();
+    string _errorMessage = string.Empty;
+
+    private DialogSettings DialogParams = new DialogSettings
+    {
+        MinHeight = "250px",
+        Width = "450px"
+    };
+
+    protected override async Task OnInitializedAsync()
+    {
+        storelocations = await Service.GetStoreLocations();
+    }
+
+    public async Task ActionBeginHandler(
+        ActionEventArgs<StoreLocations> args)
+    {
+        try
+        {
+            if (args.RequestType.ToString() == "Save")
+            {
+                await Save(args.Data);
+            }
+
+            if (args.RequestType.ToString() == "Delete")
+            {
+                await Delete(args.Data);
+            }
+        }
+        catch (Exception ex)
+        {
+            args.Cancel = true;
+            _errorMessage = ex.InnerException?.Message ?? ex.Message;
+            StateHasChanged();
+        }
+    }
+
+    public async Task Save(StoreLocations storeLocation)
+    {
+        var geocoded = await Service.GeocodeAddress(storeLocation.LocationAddress);
+
+        // Map Syncfusion Coordinate (Latitude/Longitude) to NTS Coordinate (X=Lon, Y=Lat)
+        var coordinate =
+            new Coordinate(geocoded.Longitude, geocoded.Latitude);
+
+        storeLocation.LocationLatitude = coordinate.Y.ToString();
+        storeLocation.LocationLongitude = coordinate.X.ToString();
+
+        // SRID 4326 (WGS 84) is the most standard
+        // in cartography and GPS systems
+        storeLocation.LocationData = new Point(coordinate) { SRID = 4326 };
+
+        await Service.AddStoreLocation(storeLocation);
+    }
+
+    public async Task Delete(StoreLocations store)
+    {
+        await Service.DeleteStoreLocation(store.Id);
+        storelocations = await Service.GetStoreLocations();
+    }
+
+}

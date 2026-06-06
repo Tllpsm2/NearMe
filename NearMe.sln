@@ -1,0 +1,27 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{082F1BE9-9782-4719-AEBE-EE34DB336EF2}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NearMe", "src\NearMe\NearMe.csproj", "{541A40FD-9E1F-47BB-82A8-9B308B924193}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{541A40FD-9E1F-47BB-82A8-9B308B924193}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{541A40FD-9E1F-47BB-82A8-9B308B924193}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{541A40FD-9E1F-47BB-82A8-9B308B924193}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{541A40FD-9E1F-47BB-82A8-9B308B924193}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{541A40FD-9E1F-47BB-82A8-9B308B924193} = {082F1BE9-9782-4719-AEBE-EE34DB336EF2}
+	EndGlobalSection
+EndGlobal

@@ -1,0 +1,139 @@
+@page "/azuremapdisplay"
+@using AzureMapsControl.Components.Map
+@inject IGeolocationService GeolocationService
+
+<div class="d-flex flex-wrap gap-2 align-items-center">
+    <button class="btn btn-primary" @onclick="RequestLocationAsync" disabled="@_isRequestingLocation">
+        @(_isRequestingLocation ? "Localizando..." : "Tentar localizar minha posição")
+    </button>
+
+    <button class="btn btn-outline-secondary" @onclick="ToggleTraffic">
+        @(_trafficEnabled ? "Hide Traffic" : "Show Traffic")
+    </button>
+</div>
+
+@if (!string.IsNullOrWhiteSpace(LocationMessage))
+{
+    <div class="alert alert-warning mt-3">@LocationMessage</div>
+}
+
+<AzureMap Id="map"
+    CameraOptions="new CameraOptions { Zoom = 10 }"
+    StyleOptions="new StyleOptions { ShowLogo = false }"
+    EventActivationFlags="MapEventActivationFlags.None().Enable(MapEventType.Ready)"
+    TrafficOptions="new AzureMapsControl.Components.Traffic.TrafficOptions
+    {
+        Incidents = false,
+        Flow = AzureMapsControl.Components.Traffic.TrafficFlow.Relative
+    }"
+    OnReady="OnMapReadyAsync" />
+
+@code {
+    private const double DefaultLatitude = -15.793889;
+    private const double DefaultLongitude = -47.882778;
+    private const int MaxLocationRetries = 2;
+
+    private static readonly PositionOptions LocationOptions = new()
+    {
+        EnableHighAccuracy = true,
+        Timeout = 10000,
+        MaximumAge = 0
+    };
+
+    bool _trafficEnabled;
+    bool _isRequestingLocation;
+    int _locationRetryCount;
+
+    MapEventArgs? myMap;
+    protected GeolocationPosition? CurrentPosition { get; set; }
+    string? LocationMessage;
+
+    public async Task OnMapReadyAsync(MapEventArgs eventArgs)
+    {
+        myMap = eventArgs;
+
+        await myMap.Map.SetCameraOptionsAsync(options => options.Center =
+            new AzureMapsControl.Components.Atlas.Position(DefaultLongitude, DefaultLatitude));
+
+        await RequestLocationAsync();
+    }
+
+    public async Task RequestLocationAsync()
+    {
+        if (_isRequestingLocation)
+        {
+            return;
+        }
+
+        _isRequestingLocation = true;
+        LocationMessage = null;
+        StateHasChanged();
+
+        await GeolocationService.GetCurrentPositionAsync(
+            this,
+            nameof(OnPositionReceived),
+            nameof(OnPositionError),
+            LocationOptions);
+    }
+
+    [JSInvokable]
+    public async Task OnPositionReceived(GeolocationPosition position)
+    {
+        CurrentPosition = position;
+        LocationMessage = null;
+        _locationRetryCount = 0;
+
+        if (myMap == null || position.Coords == null)
+        {
+            _isRequestingLocation = false;
+            StateHasChanged();
+            return;
+        }
+
+        var lat = Convert.ToDouble(
+            position.Coords.Latitude.ToString("F2", System.Globalization.CultureInfo.InvariantCulture),
+            System.Globalization.CultureInfo.InvariantCulture);
+
+        var lon = Convert.ToDouble(
+            position.Coords.Longitude.ToString("F2", System.Globalization.CultureInfo.InvariantCulture),
+            System.Globalization.CultureInfo.InvariantCulture);
+
+        await myMap.Map.SetCameraOptionsAsync(options => options.Center =
+            new AzureMapsControl.Components.Atlas.Position(lon, lat));
+
+        _isRequestingLocation = false;
+        StateHasChanged();
+    }
+
+    [JSInvokable]
+    public async Task OnPositionError(GeolocationPositionError error)
+    {
+        if (_locationRetryCount < MaxLocationRetries &&
+            (error.Code == error.POSITION_UNAVAILABLE || error.Code == error.TIMEOUT))
+        {
+            _locationRetryCount++;
+            await Task.Delay(1000);
+            _isRequestingLocation = false;
+            await RequestLocationAsync();
+            return;
+        }
+
+        LocationMessage = error.Code == error.PERMISSION_DENIED
+            ? "Permissao de localizacao negada no navegador. Ative o acesso ao local e tente novamente."
+            : "Nao foi possivel identificar a localizacao do navegador. O mapa foi centralizado em uma posicao padrao.";
+
+        _isRequestingLocation = false;
+        StateHasChanged();
+    }
+
+    public async Task ToggleTraffic()
+    {
+        if (myMap != null)
+        {
+            _trafficEnabled = !_trafficEnabled;
+            await myMap.Map.SetTrafficOptionsAsync(options =>
+                options.Incidents = _trafficEnabled);
+        }
+    }
+
+}

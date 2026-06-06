@@ -1,0 +1,29 @@
+# Build outputs
+**/bin/
+**/obj/
+
+# IDE files
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Rider
+*.DotSettings.user
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Local development secrets
+src/NearMe/appsettings.Development.json
+
+# NuGet
+*.nupkg
+.nuget/
+
+# dotnet tool manifests restore
+.config/

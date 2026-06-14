@@ -1,6 +1,7 @@
 #nullable disable
 using System.Net.Http.Headers;
 using System.Text.Json;
+using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using NearMe.Data;
 using NearMe.Models;
@@ -59,7 +60,8 @@ public class StoreLocationService
         client.DefaultRequestHeaders.Add("x-ms-client-id", AuthService.ClientId);
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
 
-        string url = $"https://atlas.microsoft.com/search/address/json?api-version=1.0&language=en-US&query={Uri.EscapeDataString(address)}";
+        string url =
+            $"https://atlas.microsoft.com/search/address/json?api-version=1.0&language=en-US&query={Uri.EscapeDataString(address)}";
 
         var jsonOptions = new JsonSerializerOptions
         {
@@ -81,4 +83,71 @@ public class StoreLocationService
 
         return coordinate;
     }
+
+    public async Task<SearchAddressResultReverse> GeocodeReverse(Coordinate coordinate)
+    {
+        using var client = new HttpClient();
+
+        var accessToken = await AuthService.GetAccessToken();
+
+        client.DefaultRequestHeaders.Accept.Clear();
+        client.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
+        client.DefaultRequestHeaders.Add("x-ms-client-id", AuthService.ClientId);
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+
+        string url =
+            $"https://atlas.microsoft.com/search/address/reverse/json?api-version=1.0&language=en-US&query={coordinate.Latitude},{coordinate.Longitude}";
+
+        var jsonOptions = new JsonSerializerOptions
+        {
+            PropertyNameCaseInsensitive = true
+        };
+
+        var result = await client.GetFromJsonAsync<SearchAddressResultReverse>(url, jsonOptions);
+
+        return result;
+    }
+
+  public async Task<List<StoreSearchResult>> GetNearbyStoreLocationsAsync(Coordinate coordinate)
+  {
+      var colStoreLocations = new List<StoreSearchResult>();
+
+      string wktPoint = $"POINT({coordinate.Longitude} {coordinate.Latitude})";
+
+      string sql = """
+                   DECLARE @Distance AS INT = 25;
+                   DECLARE @location sys.geography = geography::STPointFromText(@WktPoint, 4326);
+
+                   SELECT
+                       [LocationName],
+                       [LocationAddress],
+                       [LocationLatitude],
+                       [LocationLongitude],
+                       [LocationData].STDistance(@location) / 1609.3440000000001E0 AS [DistanceInMiles]
+                   FROM [StoreLocations]
+                   WHERE [LocationData].STDistance(@location) / 1609.3440000000001E0 < @Distance
+                   ORDER BY [LocationData].STDistance(@location) / 1609.3440000000001E0;
+                   """;
+
+      await using var connection = new SqlConnection(_context.Database.GetConnectionString());
+      await using var command = new SqlCommand(sql, connection);
+
+      command.Parameters.AddWithValue("@WktPoint", wktPoint);
+
+      await connection.OpenAsync();
+      await using var reader = await command.ExecuteReaderAsync();
+
+      while (await reader.ReadAsync())
+      {
+          colStoreLocations.Add(new StoreSearchResult
+          {
+              LocationName = reader["LocationName"].ToString(),
+              LocationAddress = reader["LocationAddress"].ToString(),
+              LocationLatitude = Convert.ToDouble(reader["LocationLatitude"]),
+              LocationLongitude = Convert.ToDouble(reader["LocationLongitude"]),
+              Distance = Convert.ToDouble(reader["DistanceInMiles"])
+          });
+      }
+      return colStoreLocations;
+  }
 }

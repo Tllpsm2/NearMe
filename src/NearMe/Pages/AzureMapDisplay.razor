@@ -4,7 +4,7 @@
 
 <div class="d-flex flex-wrap gap-2 align-items-center">
     <button class="btn btn-primary" @onclick="RequestLocationAsync" disabled="@_isRequestingLocation">
-        @(_isRequestingLocation ? "Localizando..." : "Tentar localizar minha posição")
+        @(_isRequestingLocation ? "Locating..." : "Try to locate my position")
     </button>
 
     <button class="btn btn-outline-secondary" @onclick="ToggleTraffic">
@@ -119,8 +119,8 @@
         }
 
         LocationMessage = error.Code == error.PERMISSION_DENIED
-            ? "Permissao de localizacao negada no navegador. Ative o acesso ao local e tente novamente."
-            : "Nao foi possivel identificar a localizacao do navegador. O mapa foi centralizado em uma posicao padrao.";
+            ? "Location permission denied in browser. Please enable location access and try again."
+            : "Could not identify browser location. The map has been centered at the default position.";
 
         _isRequestingLocation = false;
         StateHasChanged();

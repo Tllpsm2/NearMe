@@ -1,3 +1,12 @@
+IF NOT EXISTS (SELECT * FROM sys.databases WHERE name = N'NearMe')
+BEGIN
+    CREATE DATABASE [NearMe];
+END
+GO
+
+USE [NearMe]
+GO
+
 SET ANSI_NULLS ON
 GO
 
@@ -20,7 +29,7 @@ BEGIN
     CREATE TABLE [dbo].[StoreLocations]
     (
         [Id] [int] IDENTITY(1,1) NOT NULL,
-        [LocationName] [nvarchar](50) NOT NULL,
+        [LocationName] [nvarchar](150) NOT NULL,
         [LocationLatitude] [nvarchar](50) NOT NULL,
         [LocationLongitude] [nvarchar](50) NOT NULL,
         [LocationAddress] [nvarchar](250) NOT NULL,

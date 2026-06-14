@@ -1,7 +1,180 @@
 @page "/"
+@using NearMe.Models
+@using NearMe.Services
+@using Syncfusion.Blazor.Maps
+@using Syncfusion.Blazor.Lists
+@using Syncfusion.Blazor.Inputs
+@using AzureMapsControl.Components.Map
 
-<PageTitle>NearMe</PageTitle>
+@inject IJSRuntime JS
+@inherits OwningComponentBase<StoreLocationService>
 
-<h1>NearMe</h1>
+<h4>NearMe Store Finder</h4>
 
-<p>Explore maps and locations near you.</p>
+<div class="row" style="width:1500px">
+    <div class="col-xs-2 col-sm-2 col-lg-2 col-md-2">
+        <div class="row">
+            <div class="col-xs-9 col-sm-9 col-lg-9 col-md-9" style="margin-top:10px;">
+                <SfTextBox Placeholder="Location"
+                           @bind-Value="_currentLocation"/>
+            </div>
+            <div class="col-xs-3 col-sm-3 col-lg-3 col-md-3">
+                @if (_searching)
+                {
+                    <div class="spinner-border text-primary" role="status"
+                         style="margin-top:8px;">
+                    </div>
+                }
+                else
+                {
+                    <button class="e-control e-btn e-lib" @onclick="Search"
+                            style="width:auto; margin-top:8px;">
+                        <span class="oi oi-magnifying-glass"></span>
+                    </button>
+                }
+            </div>
+        </div>
+
+        <br/>
+
+        @if (_colStoreLocations.Count > 0)
+        {
+            <SfListView @ref="_storeSearchResultListBox"
+                        DataSource="@_colStoreLocations"
+                        Height="450px"
+                        CssClass="e-list-template listview-template">
+                <ListViewFieldSettings TValue="StoreSearchResult"
+                                       Id="LocationName"
+                                       Text="Text"
+                                       Child="Child"/>
+                <ListViewTemplates TValue="StoreSearchResult">
+                    <Template>
+                        @{
+                            StoreSearchResult currentData = (StoreSearchResult)context;
+                            <div class="e-list-wrapper e-list-avatar e-list-multi-line">
+                                <span class="e-avatar">
+                                    <span class="oi oi-globe"></span>
+                                </span>
+                                <span class="e-list-item-header">@currentData.LocationName</span>
+                                <span class="e-list-item-header">@currentData.LocationAddress</span>
+                                <span class="e-list-content">
+                                    @currentData.Distance.ToString("F") miles
+                                </span>
+                            </div>
+                        }
+                    </Template>
+                </ListViewTemplates>
+            </SfListView>
+        }
+    </div>
+
+    <div class="col-xs-10 col-sm-10 col-lg-10 col-md-10">
+        <AzureMap Id="map"
+                  CameraOptions="new CameraOptions { Zoom = 10, MinZoom = 1, MaxZoom = 20 }"
+                  StyleOptions="new StyleOptions { ShowLogo = false, ShowFeedbackLink = false }"
+                  EventActivationFlags="MapEventActivationFlags.None().Enable(MapEventType.Ready)"
+                  OnReady="OnMapReadyAsync"/>
+    </div>
+</div>
+
+@code {
+    MapEventArgs? _myMap;
+    SfListView<StoreSearchResult>? _storeSearchResultListBox;
+
+    List<StoreSearchResult> _colStoreLocations = [];
+
+    Coordinate _currentCoordinate = new();
+    string _currentLocation = string.Empty;
+    bool _searching;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            double latitude = await JS.InvokeAsync<double>(
+                "eval", "new Promise(r => navigator.geolocation.getCurrentPosition(p => r(p.coords.latitude)))");
+            double longitude = await JS.InvokeAsync<double>(
+                "eval", "new Promise(r => navigator.geolocation.getCurrentPosition(p => r(p.coords.longitude)))");
+
+            _currentCoordinate = new Coordinate
+            {
+                Latitude = latitude,
+                Longitude = longitude
+            };
+
+            SearchAddressResultReverse? reverseResult =
+                await Service.GeocodeReverse(_currentCoordinate);
+
+            string? freeformAddress = reverseResult?.Addresses?[0]?.Address?.FreeformAddress;
+
+            if (freeformAddress != null)
+            {
+                _currentLocation = freeformAddress;
+                await Search();
+            }
+
+            StateHasChanged();
+        }
+    }
+
+    public void OnMapReadyAsync(MapEventArgs eventArgs)
+    {
+        _myMap = eventArgs;
+    }
+
+    public async Task Search()
+    {
+        _searching = true;
+        StateHasChanged();
+
+        _colStoreLocations = [];
+
+        Coordinate? currentCoordinate = await Service.GeocodeAddress(_currentLocation);
+
+        if (currentCoordinate != null)
+        {
+            _colStoreLocations = await Service.GetNearbyStoreLocationsAsync(currentCoordinate);
+        }
+
+        _searching = false;
+        StateHasChanged();
+
+        if (_myMap != null && currentCoordinate != null)
+        {
+            await _myMap.Map.SetCameraOptionsAsync(options => options.Center = new AzureMapsControl.Components.Atlas.Position(
+                currentCoordinate.Longitude, currentCoordinate.Latitude));
+
+            await _myMap.Map.ClearHtmlMarkersAsync();
+
+            var homeMarker = new AzureMapsControl.Components.Markers.HtmlMarker(
+                new AzureMapsControl.Components.Markers.HtmlMarkerOptions
+                {
+                    Position = new AzureMapsControl.Components.Atlas.Position(
+                        currentCoordinate.Longitude, currentCoordinate.Latitude),
+                    Draggable = false,
+                    Color = "#1A73AA",
+                    SecondaryColor = "#FFFFFF",
+                    Text = "Me",
+                    HtmlContent = "<div style='background-color: {color}; color: {secondaryColor}; border: 3px solid {secondaryColor}; border-radius: 50%; width: 35px; height: 35px; display: flex; justify-content: center; align-items: center; font-weight: bold; box-shadow: 0px 4px 6px rgba(0,0,0,0.3);'>{text}</div>",
+                    Visible = true
+                });
+
+            await _myMap.Map.AddHtmlMarkersAsync(homeMarker);
+
+            foreach (var store in _colStoreLocations)
+            {
+                var storeMarker = new AzureMapsControl.Components.Markers.HtmlMarker(
+                    new AzureMapsControl.Components.Markers.HtmlMarkerOptions
+                    {
+                        Position = new AzureMapsControl.Components.Atlas.Position(
+                            store.LocationLongitude, store.LocationLatitude),
+                        Draggable = false,
+                        Color = "#0000FF"
+                    });
+
+                await _myMap.Map.AddHtmlMarkersAsync(storeMarker);
+            }
+        }
+    }
+
+}

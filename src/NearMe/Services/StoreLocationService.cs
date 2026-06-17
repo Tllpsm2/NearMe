@@ -108,46 +108,47 @@ public class StoreLocationService
         return result;
     }
 
-  public async Task<List<StoreSearchResult>> GetNearbyStoreLocationsAsync(Coordinate coordinate)
-  {
-      var colStoreLocations = new List<StoreSearchResult>();
+    public async Task<List<StoreSearchResult>> GetNearbyStoreLocationsAsync(Coordinate coordinate)
+    {
+        var colStoreLocations = new List<StoreSearchResult>();
 
-      string wktPoint = $"POINT({coordinate.Longitude} {coordinate.Latitude})";
+        string wktPoint = $"POINT({coordinate.Longitude} {coordinate.Latitude})";
 
-      string sql = """
-                   DECLARE @Distance AS INT = 25;
-                   DECLARE @location sys.geography = geography::STPointFromText(@WktPoint, 4326);
+        string sql = """
+                     DECLARE @Distance AS INT = 25;
+                     DECLARE @location sys.geography = geography::STPointFromText(@WktPoint, 4326);
 
-                   SELECT
-                       [LocationName],
-                       [LocationAddress],
-                       [LocationLatitude],
-                       [LocationLongitude],
-                       [LocationData].STDistance(@location) / 1609.3440000000001E0 AS [DistanceInMiles]
-                   FROM [StoreLocations]
-                   WHERE [LocationData].STDistance(@location) / 1609.3440000000001E0 < @Distance
-                   ORDER BY [LocationData].STDistance(@location) / 1609.3440000000001E0;
-                   """;
+                     SELECT
+                         [LocationName],
+                         [LocationAddress],
+                         [LocationLatitude],
+                         [LocationLongitude],
+                         [LocationData].STDistance(@location) / 1000.0 AS [DistanceInKm]
+                     FROM [StoreLocations]
+                     WHERE [LocationData].STDistance(@location) / 1000.0 < @Distance
+                     ORDER BY [LocationData].STDistance(@location) / 1000.0;
+                     """;
 
-      await using var connection = new SqlConnection(_context.Database.GetConnectionString());
-      await using var command = new SqlCommand(sql, connection);
+        await using var connection = new SqlConnection(_context.Database.GetConnectionString());
+        await using var command = new SqlCommand(sql, connection);
 
-      command.Parameters.AddWithValue("@WktPoint", wktPoint);
+        command.Parameters.AddWithValue("@WktPoint", wktPoint);
 
-      await connection.OpenAsync();
-      await using var reader = await command.ExecuteReaderAsync();
+        await connection.OpenAsync();
+        await using var reader = await command.ExecuteReaderAsync();
 
-      while (await reader.ReadAsync())
-      {
-          colStoreLocations.Add(new StoreSearchResult
-          {
-              LocationName = reader["LocationName"].ToString(),
-              LocationAddress = reader["LocationAddress"].ToString(),
-              LocationLatitude = Convert.ToDouble(reader["LocationLatitude"]),
-              LocationLongitude = Convert.ToDouble(reader["LocationLongitude"]),
-              Distance = Convert.ToDouble(reader["DistanceInMiles"])
-          });
-      }
-      return colStoreLocations;
-  }
+        while (await reader.ReadAsync())
+        {
+            colStoreLocations.Add(new StoreSearchResult
+            {
+                LocationName = reader["LocationName"].ToString(),
+                LocationAddress = reader["LocationAddress"].ToString(),
+                LocationLatitude = Convert.ToDouble(reader["LocationLatitude"]),
+                LocationLongitude = Convert.ToDouble(reader["LocationLongitude"]),
+                Distance = Convert.ToDouble(reader["DistanceInKm"])
+            });
+        }
+
+        return colStoreLocations;
+    }
 }

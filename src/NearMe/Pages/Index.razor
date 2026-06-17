@@ -1,56 +1,52 @@
 @page "/"
+@using AzureMapsControl.Components.Map
+@using AzureMapsControl.Components.Markers
 @using NearMe.Models
 @using NearMe.Services
-@using Syncfusion.Blazor.Maps
-@using Syncfusion.Blazor.Lists
 @using Syncfusion.Blazor.Inputs
-@using AzureMapsControl.Components.Map
+@using Syncfusion.Blazor.Lists
+@using Syncfusion.Blazor.Maps
 
 @inject IJSRuntime JS
 @inherits OwningComponentBase<StoreLocationService>
 
 <h4>NearMe Store Finder</h4>
-
 <div class="row" style="width:1500px">
     <div class="col-xs-2 col-sm-2 col-lg-2 col-md-2">
         <div class="row">
             <div class="col-xs-9 col-sm-9 col-lg-9 col-md-9" style="margin-top:10px;">
-                <SfTextBox Placeholder="Location"
-                           @bind-Value="_currentLocation"/>
+                <SfTextBox Placeholder="Location" @bind-Value="_currentLocation" />
             </div>
             <div class="col-xs-3 col-sm-3 col-lg-3 col-md-3">
                 @if (_searching)
                 {
-                    <div class="spinner-border text-primary" role="status"
-                         style="margin-top:8px;">
+                    <div class="spinner-border text-primary" role="status" style="margin-top:8px;">
                     </div>
                 }
                 else
                 {
-                    <button class="e-control e-btn e-lib" @onclick="Search"
-                            style="width:auto; margin-top:8px;">
+                    <button class="e-control e-btn e-lib" @onclick="SearchAsync" style="width:auto; margin-top:8px;">
                         <span class="oi oi-magnifying-glass"></span>
                     </button>
                 }
             </div>
         </div>
-
-        <br/>
-
+        @if (_geolocationError)
+        {
+            <div class="alert alert-warning alert-sm p-2 mt-1 mb-0" role="alert" style="font-size:12px;">
+                Location access denied. Enter an address to search.
+            </div>
+        }
+        <br />
         @if (_colStoreLocations.Count > 0)
         {
-            <SfListView @ref="_storeSearchResultListBox"
-                        DataSource="@_colStoreLocations"
-                        Height="450px"
+            <SfListView @ref="_storeSearchResultListBox" DataSource="@_colStoreLocations" Height="450px"
                         CssClass="e-list-template listview-template">
-                <ListViewFieldSettings TValue="StoreSearchResult"
-                                       Id="LocationName"
-                                       Text="Text"
-                                       Child="Child"/>
+                <ListViewFieldSettings TValue="StoreSearchResult" Id="LocationName" Text="Text" Child="Child" />
                 <ListViewTemplates TValue="StoreSearchResult">
                     <Template>
                         @{
-                            StoreSearchResult currentData = (StoreSearchResult)context;
+                            var currentData = (StoreSearchResult)context;
                             <div class="e-list-wrapper e-list-avatar e-list-multi-line">
                                 <span class="e-avatar">
                                     <span class="oi oi-globe"></span>
@@ -58,7 +54,7 @@
                                 <span class="e-list-item-header">@currentData.LocationName</span>
                                 <span class="e-list-item-header">@currentData.LocationAddress</span>
                                 <span class="e-list-content">
-                                    @currentData.Distance.ToString("F") miles
+                                    @FormatDistance(currentData.Distance)
                                 </span>
                             </div>
                         }
@@ -67,69 +63,184 @@
             </SfListView>
         }
     </div>
-
-    <div class="col-xs-10 col-sm-10 col-lg-10 col-md-10">
-        <AzureMap Id="map"
-                  CameraOptions="new CameraOptions { Zoom = 10, MinZoom = 1, MaxZoom = 20 }"
+    <div class="col-xs-10 col-sm-10 col-lg-10 col-md-10" style="position:relative;">
+        <AzureMap Id="map" CameraOptions="new CameraOptions { Zoom = 14, MinZoom = 1, MaxZoom = 20 }"
                   StyleOptions="new StyleOptions { ShowLogo = false, ShowFeedbackLink = false }"
-                  EventActivationFlags="MapEventActivationFlags.None().Enable(MapEventType.Ready)"
-                  OnReady="OnMapReadyAsync"/>
+                  EventActivationFlags="MapEventActivationFlags.None().Enable(MapEventType.Ready)" OnReady="OnMapReady" />
+
+        @if (_showStoreCard && _selectedStore is not null)
+        {
+            <div class="store-info-backdrop" @onclick="CloseStoreCard"></div>
+            <div class="store-info-card" @onclick:stopPropagation="true">
+                <button type="button" class="store-info-close" @onclick="CloseStoreCard">&times;</button>
+                <p class="store-info-title">@_selectedStore.LocationName</p>
+                <p class="store-info-address">@_selectedStore.LocationAddress</p>
+                <span class="store-info-distance">@FormatDistance(_selectedStore.Distance)</span>
+            </div>
+        }
     </div>
 </div>
 
+<style>
+    .store-info-backdrop {
+        position: absolute;
+        inset: 0;
+        z-index: 5;
+        background: transparent;
+    }
+
+    .store-info-card {
+        position: absolute;
+        top: 16px;
+        left: 16px;
+        z-index: 6;
+        width: 260px;
+        background: #ffffff;
+        border-radius: 8px;
+        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+        padding: 14px 16px;
+        font-family: inherit;
+    }
+
+    .store-info-close {
+        position: absolute;
+        top: 6px;
+        right: 8px;
+        border: none;
+        background: transparent;
+        font-size: 18px;
+        line-height: 1;
+        cursor: pointer;
+        color: #555;
+    }
+
+    .store-info-close:hover {
+        color: #000;
+    }
+
+    .store-info-title {
+        margin: 0 24px 6px 0;
+        font-size: 16px;
+        font-weight: 600;
+    }
+
+    .store-info-address {
+        margin: 0 0 8px 0;
+        font-size: 13px;
+        color: #444;
+    }
+
+    .store-info-distance {
+        font-size: 12px;
+        color: #1A73AA;
+        font-weight: 600;
+    }
+
+    .user-location-marker-container {
+        position: relative;
+        width: 20px;
+        height: 20px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+    }
+
+    .user-location-pulse {
+        position: absolute;
+        width: 32px;
+        height: 32px;
+        background-color: rgba(26, 115, 170, 0.3);
+        border-radius: 50%;
+        animation: pulse 2s infinite ease-in-out;
+    }
+
+    .user-location-dot {
+        position: relative;
+        width: 16px;
+        height: 16px;
+        background-color: #1A73AA;
+        border: 2px solid #FFFFFF;
+        border-radius: 50%;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
+    }
+
+    @@keyframes pulse {
+        0% {
+            transform: scale(0.8);
+            opacity: 1;
+        }
+
+        100% {
+            transform: scale(1.8);
+            opacity: 0;
+        }
+    }
+</style>
+
 @code {
-    MapEventArgs? _myMap;
-    SfListView<StoreSearchResult>? _storeSearchResultListBox;
-
-    List<StoreSearchResult> _colStoreLocations = [];
-
-    Coordinate _currentCoordinate = new();
-    string _currentLocation = string.Empty;
-    bool _searching;
+    private MapEventArgs? _myMap;
+    private SfListView<StoreSearchResult>? _storeSearchResultListBox;
+    private List<StoreSearchResult> _colStoreLocations = [];
+    private Coordinate _currentCoordinate = new();
+    private string _currentLocation = string.Empty;
+    private bool _searching;
+    private bool _geolocationError;
+    private StoreSearchResult? _selectedStore;
+    private bool _showStoreCard;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (firstRender)
         {
-            double latitude = await JS.InvokeAsync<double>(
-                "eval", "new Promise(r => navigator.geolocation.getCurrentPosition(p => r(p.coords.latitude)))");
-            double longitude = await JS.InvokeAsync<double>(
-                "eval", "new Promise(r => navigator.geolocation.getCurrentPosition(p => r(p.coords.longitude)))");
-
-            _currentCoordinate = new Coordinate
+            try
             {
-                Latitude = latitude,
-                Longitude = longitude
-            };
+                var latitude = await JS.InvokeAsync<double>(
+                    "eval",
+                    "new Promise((resolve, reject) => navigator.geolocation.getCurrentPosition(p => resolve(p.coords.latitude), e => reject(e.message)))");
+                var longitude = await JS.InvokeAsync<double>(
+                    "eval",
+                    "new Promise((resolve, reject) => navigator.geolocation.getCurrentPosition(p => resolve(p.coords.longitude), e => reject(e.message)))");
 
-            SearchAddressResultReverse? reverseResult =
-                await Service.GeocodeReverse(_currentCoordinate);
+                if (latitude != 0 || longitude != 0)
+                {
+                    _currentCoordinate = new Coordinate
+                    {
+                        Latitude = latitude,
+                        Longitude = longitude
+                    };
 
-            string? freeformAddress = reverseResult?.Addresses?[0]?.Address?.FreeformAddress;
+                    var reverseResult = await Service.GeocodeReverse(_currentCoordinate);
+                    var freeformAddress = reverseResult?.Addresses?[0]?.Address?.FreeformAddress;
 
-            if (freeformAddress != null)
+                    if (freeformAddress != null)
+                    {
+                        _currentLocation = freeformAddress;
+                        await SearchAsync();
+                    }
+                }
+            }
+            catch
             {
-                _currentLocation = freeformAddress;
-                await Search();
+                _geolocationError = true;
             }
 
             StateHasChanged();
         }
     }
 
-    public void OnMapReadyAsync(MapEventArgs eventArgs)
+    private void OnMapReady(MapEventArgs eventArgs)
     {
         _myMap = eventArgs;
     }
 
-    public async Task Search()
+    private async Task SearchAsync()
     {
         _searching = true;
         StateHasChanged();
 
         _colStoreLocations = [];
 
-        Coordinate? currentCoordinate = await Service.GeocodeAddress(_currentLocation);
+        var currentCoordinate = await Service.GeocodeAddress(_currentLocation);
 
         if (currentCoordinate != null)
         {
@@ -141,40 +252,95 @@
 
         if (_myMap != null && currentCoordinate != null)
         {
-            await _myMap.Map.SetCameraOptionsAsync(options => options.Center = new AzureMapsControl.Components.Atlas.Position(
-                currentCoordinate.Longitude, currentCoordinate.Latitude));
+            await _myMap.Map.SetCameraOptionsAsync(options =>
+            {
+                options.Center = new AzureMapsControl.Components.Atlas.Position(
+                    currentCoordinate.Longitude, currentCoordinate.Latitude);
+                options.Zoom = 14;
+            });
 
             await _myMap.Map.ClearHtmlMarkersAsync();
 
-            var homeMarker = new AzureMapsControl.Components.Markers.HtmlMarker(
-                new AzureMapsControl.Components.Markers.HtmlMarkerOptions
-                {
-                    Position = new AzureMapsControl.Components.Atlas.Position(
-                        currentCoordinate.Longitude, currentCoordinate.Latitude),
-                    Draggable = false,
-                    Color = "#1A73AA",
-                    SecondaryColor = "#FFFFFF",
-                    Text = "Me",
-                    HtmlContent = "<div style='background-color: {color}; color: {secondaryColor}; border: 3px solid {secondaryColor}; border-radius: 50%; width: 35px; height: 35px; display: flex; justify-content: center; align-items: center; font-weight: bold; box-shadow: 0px 4px 6px rgba(0,0,0,0.3);'>{text}</div>",
-                    Visible = true
-                });
-
-            await _myMap.Map.AddHtmlMarkersAsync(homeMarker);
-
-            foreach (var store in _colStoreLocations)
+            if (_currentCoordinate.Latitude != 0 || _currentCoordinate.Longitude != 0)
             {
-                var storeMarker = new AzureMapsControl.Components.Markers.HtmlMarker(
-                    new AzureMapsControl.Components.Markers.HtmlMarkerOptions
+                var homeMarker = new HtmlMarker(
+                    new HtmlMarkerOptions
+                    {
+                        Position = new AzureMapsControl.Components.Atlas.Position(
+                            _currentCoordinate.Longitude, _currentCoordinate.Latitude),
+                        Draggable = false,
+                        HtmlContent = BuildUserLocationHtmlContent(),
+                        Visible = true
+                    });
+
+                await _myMap.Map.AddHtmlMarkersAsync(homeMarker);
+            }
+
+            for (var i = 0; i < _colStoreLocations.Count; i++)
+            {
+                var store = _colStoreLocations[i];
+                var storeMarker = new HtmlMarker(
+                    new HtmlMarkerOptions
                     {
                         Position = new AzureMapsControl.Components.Atlas.Position(
                             store.LocationLongitude, store.LocationLatitude),
                         Draggable = false,
-                        Color = "#0000FF"
-                    });
+                        HtmlContent = BuildStorePinHtmlContent($"storePinShadow-{i}")
+                    },
+                    HtmlMarkerEventActivationFlags.None().Enable(HtmlMarkerEventType.Click));
+
+                storeMarker.OnClick += _ => OnStoreMarkerClick(store);
 
                 await _myMap.Map.AddHtmlMarkersAsync(storeMarker);
             }
         }
     }
+
+    private void OnStoreMarkerClick(StoreSearchResult store)
+    {
+        _ = InvokeAsync(() =>
+        {
+            _selectedStore = store;
+            _showStoreCard = true;
+            StateHasChanged();
+        });
+    }
+
+    private void CloseStoreCard()
+    {
+        _ = InvokeAsync(() =>
+        {
+            _showStoreCard = false;
+            _selectedStore = null;
+            StateHasChanged();
+        });
+    }
+
+    private static string FormatDistance(double distanceInKm)
+    {
+        if (distanceInKm < 1)
+        {
+            return $"{(distanceInKm * 1000).ToString("F0")} m";
+        }
+
+        return $"{distanceInKm.ToString("F1")} km";
+    }
+
+    private static string BuildUserLocationHtmlContent() =>
+        "<div class='user-location-marker-container'>" +
+        "<div class='user-location-pulse'></div>" +
+        "<div class='user-location-dot'></div>" +
+        "</div>";
+
+    private static string BuildStorePinHtmlContent(string filterId) =>
+        "<div style='cursor:pointer;width:30px;height:37px;transform-origin:bottom center;transition:transform .15s ease-out;' " +
+        "onmouseover='this.style.transform=\"scale(1.15)\"' onmouseout='this.style.transform=\"scale(1)\"'>" +
+        "<svg width='30' height='37' viewBox='0 0 30 37' style='overflow:visible' xmlns='http://www.w3.org/2000/svg'>" +
+        $"<defs><filter id='{filterId}' x='-60%' y='-20%' width='220%' height='170%'>" +
+        "<feDropShadow dx='0' dy='1.5' stdDeviation='1.4' flood-color='#000000' flood-opacity='0.35'/>" +
+        "</filter></defs>" +
+        $"<path filter='url(#{filterId})' d='M15,1 C7.82,1 2,6.82 2,14 C2,22.6 15,37 15,37 C15,37 28,22.6 28,14 C28,6.82 22.18,1 15,1 Z' fill='#E53935' stroke='#B71C1C' stroke-width='1'/>" +
+        "<circle cx='15' cy='14' r='5.6' fill='#FFFFFF'/>" +
+        "</svg></div>";
 
 }

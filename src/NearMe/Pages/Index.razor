@@ -228,9 +228,10 @@
         }
     }
 
-    private void OnMapReady(MapEventArgs eventArgs)
+    private async Task OnMapReady(MapEventArgs eventArgs)
     {
         _myMap = eventArgs;
+        await JS.InvokeVoidAsync("mapHelpers.addScaleControl");
     }
 
     private async Task SearchAsync()

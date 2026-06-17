@@ -32,6 +32,7 @@
 <script src="_content/Blazor.Geolocation/blazorators.geolocation.g.js"></script>
 <script src="https://atlas.microsoft.com/sdk/javascript/mapcontrol/3/atlas.min.js"></script>
 <script src="_content/AzureMapsControl.Components/azure-maps-control.js"></script>
+<script src="js/map-helpers.js"></script>
 <script type="text/javascript">
     azureMapsControl.Extensions.getTokenCallback = (resolve, reject, map) => {
         DotNet.invokeMethodAsync('NearMe', 'GetAccessToken')

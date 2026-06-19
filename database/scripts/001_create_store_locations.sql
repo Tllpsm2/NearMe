@@ -1,10 +1,10 @@
-IF NOT EXISTS (SELECT * FROM sys.databases WHERE name = N'NearMe')
+IF NOT EXISTS (SELECT * FROM sys.databases WHERE name = N'nearmedb')
 BEGIN
-    CREATE DATABASE [NearMe];
+    CREATE DATABASE [nearmedb];
 END
 GO
 
-USE [NearMe]
+USE [nearmedb]
 GO
 
 SET ANSI_NULLS ON

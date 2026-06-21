@@ -1,6 +1,5 @@
 #nullable disable
 
-using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace NearMe.Models;
@@ -86,22 +85,3 @@ public partial class Summary
     [JsonPropertyName("fuzzyLevel")] public long FuzzyLevel { get; set; }
 }
 
-public partial class SearchAddressResult
-{
-    public static SearchAddressResult FromJson(string json) =>
-        JsonSerializer.Deserialize<SearchAddressResult>(json, Converter.Settings);
-}
-
-public static class Serialize
-{
-    public static string ToJson(this SearchAddressResult self) =>
-        JsonSerializer.Serialize(self, Converter.Settings);
-}
-
-internal static class Converter
-{
-    public static readonly JsonSerializerOptions Settings = new JsonSerializerOptions
-    {
-        PropertyNameCaseInsensitive = true
-    };
-}

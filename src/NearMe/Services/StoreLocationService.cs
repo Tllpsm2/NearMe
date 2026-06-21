@@ -25,12 +25,6 @@ public class StoreLocationService
                 .ToListAsync();
     }
 
-    public async Task<StoreLocations> GetStoreLocation(int id)
-    {
-        return await
-            _context.StoreLocations.FindAsync(id);
-    }
-
     public async Task<StoreLocations> AddStoreLocation(StoreLocations storeLocation)
     {
         _context.StoreLocations.Add(storeLocation);
@@ -95,8 +89,9 @@ public class StoreLocationService
         client.DefaultRequestHeaders.Add("x-ms-client-id", AuthService.ClientId);
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
 
-        string url =
-            $"https://atlas.microsoft.com/search/address/reverse/json?api-version=1.0&language=en-US&query={coordinate.Latitude},{coordinate.Longitude}";
+        string url = string.Format(System.Globalization.CultureInfo.InvariantCulture,
+            "https://atlas.microsoft.com/search/address/reverse/json?api-version=1.0&language=en-US&query={0},{1}",
+            coordinate.Latitude, coordinate.Longitude);
 
         var jsonOptions = new JsonSerializerOptions
         {
@@ -112,7 +107,7 @@ public class StoreLocationService
     {
         var colStoreLocations = new List<StoreSearchResult>();
 
-        string wktPoint = $"POINT({coordinate.Longitude} {coordinate.Latitude})";
+        string wktPoint = string.Format(System.Globalization.CultureInfo.InvariantCulture, "POINT({0} {1})", coordinate.Longitude, coordinate.Latitude);
 
         string sql = """
                      DECLARE @Distance AS INT = 25;
@@ -143,8 +138,8 @@ public class StoreLocationService
             {
                 LocationName = reader["LocationName"].ToString(),
                 LocationAddress = reader["LocationAddress"].ToString(),
-                LocationLatitude = Convert.ToDouble(reader["LocationLatitude"]),
-                LocationLongitude = Convert.ToDouble(reader["LocationLongitude"]),
+                LocationLatitude = Convert.ToDouble(reader["LocationLatitude"], System.Globalization.CultureInfo.InvariantCulture),
+                LocationLongitude = Convert.ToDouble(reader["LocationLongitude"], System.Globalization.CultureInfo.InvariantCulture),
                 Distance = Convert.ToDouble(reader["DistanceInKm"])
             });
         }

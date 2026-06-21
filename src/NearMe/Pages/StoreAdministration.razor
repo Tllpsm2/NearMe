@@ -7,19 +7,42 @@
 @using Syncfusion.Blazor.Grids
 @using Syncfusion.Blazor.Inputs
 @inherits OwningComponentBase<NearMe.Services.StoreLocationService>
-<h3>Store Administration</h3>
+<div class="admin-header">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--text-primary)"
+         stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="3"/>
+        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65
+                 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65
+                 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65
+                 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0
+                 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65
+                 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65
+                 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06
+                 A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65
+                 1.65 0 0 0-1.51 1z"/>
+    </svg>
+    <h3>Store Administration</h3>
+</div>
 
 @if (!string.IsNullOrEmpty(_errorMessage))
 {
-    <div class="alert alert-danger alert-dismissible">
-        <strong>Error:</strong> @_errorMessage
-        <button type="button" class="btn-close" @onclick="() => _errorMessage = string.Empty"></button>
+    <div class="admin-error">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"/>
+            <line x1="15" y1="9" x2="9" y2="15"/>
+            <line x1="9" y1="9" x2="15" y2="15"/>
+        </svg>
+        <span>@_errorMessage</span>
+        <button type="button" class="admin-error-close" @onclick="() => _errorMessage = string.Empty">
+            &times;
+        </button>
     </div>
 }
 
 <div class="col-lg-12 control-section">
     <div class="content-wrapper">
-        <div class="row">
+        <div class="admin-grid-container">
             <SfGrid DataSource="@storelocations" Toolbar="@(new List<string> { "Add", "Delete" })" AllowPaging="true">
                 <GridEvents OnActionBegin="ActionBeginHandler" TValue="StoreLocations"></GridEvents>
                 <GridEditSettings AllowAdding="true" AllowDeleting="true" Mode="@EditMode.Dialog" Dialog="DialogParams">
@@ -64,6 +87,80 @@
         </div>
     </div>
 </div>
+
+<style>
+    .admin-header {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 24px;
+        padding: 24px 24px 16px;
+        border-bottom: 1px solid var(--border);
+    }
+
+    .admin-header h3 {
+        margin: 0;
+        font-family: var(--font-heading);
+    }
+
+    .admin-error {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin: 0 24px 16px;
+        padding: 10px 14px;
+        background: #FEE2E2;
+        border: 1px solid #EF4444;
+        border-radius: var(--radius-md);
+        font-size: 13px;
+        color: #991B1B;
+    }
+
+    .admin-error-close {
+        margin-left: auto;
+        border: none;
+        background: none;
+        font-size: 18px;
+        color: #991B1B;
+        cursor: pointer;
+        line-height: 1;
+    }
+
+    .admin-grid-container {
+        margin: 0 24px 24px;
+        background: var(--surface-elevated);
+        border-radius: var(--radius-lg);
+        box-shadow: var(--shadow-sm);
+        border: 1px solid var(--border);
+        padding: 16px;
+        overflow-x: auto;
+    }
+
+    .admin-grid-container .e-grid .e-headercell {
+        background: var(--surface) !important;
+        color: var(--text-primary) !important;
+        font-family: var(--font-heading) !important;
+        font-weight: 600 !important;
+        font-size: 13px !important;
+    }
+
+    .admin-grid-container .e-grid .e-rowcell {
+        font-family: var(--font-body) !important;
+        font-size: 13px !important;
+        color: var(--text-primary) !important;
+    }
+
+    .admin-grid-container .e-grid td:nth-child(4),
+    .admin-grid-container .e-grid td:nth-child(5) {
+        font-family: var(--font-mono) !important;
+        font-size: 12px !important;
+    }
+
+    .admin-grid-container .e-dialog {
+        border-radius: var(--radius-lg) !important;
+        box-shadow: var(--shadow-lg) !important;
+    }
+</style>
 
 @code {
     List<StoreLocations> storelocations = new();

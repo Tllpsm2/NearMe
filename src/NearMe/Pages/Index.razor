@@ -1,139 +1,404 @@
 @page "/"
+@using System.Linq
 @using AzureMapsControl.Components.Map
 @using AzureMapsControl.Components.Markers
 @using NearMe.Models
 @using NearMe.Services
 @using Syncfusion.Blazor.Inputs
-@using Syncfusion.Blazor.Lists
 @using Syncfusion.Blazor.Maps
 
 @inject IJSRuntime JS
 @inherits OwningComponentBase<StoreLocationService>
 
-<h4>NearMe Store Finder</h4>
-<div class="row" style="width:1500px">
-    <div class="col-xs-2 col-sm-2 col-lg-2 col-md-2">
-        <div class="row">
-            <div class="col-xs-9 col-sm-9 col-lg-9 col-md-9" style="margin-top:10px;">
-                <SfTextBox Placeholder="Location" @bind-Value="_currentLocation" />
-            </div>
-            <div class="col-xs-3 col-sm-3 col-lg-3 col-md-3">
-                @if (_searching)
-                {
-                    <div class="spinner-border text-primary" role="status" style="margin-top:8px;">
-                    </div>
-                }
-                else
-                {
-                    <button class="e-control e-btn e-lib" @onclick="SearchAsync" style="width:auto; margin-top:8px;">
-                        <span class="oi oi-magnifying-glass"></span>
-                    </button>
-                }
-            </div>
+<div class="page-header">
+    <div class="page-header-icon">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/>
+            <circle cx="12" cy="10" r="3"/>
+        </svg>
+    </div>
+    <div class="page-header-text">
+        <h1 class="page-title">Store Finder</h1>
+        <p class="page-subtitle">
+            @if (_searching)
+            {
+                <span>Searching nearby stores&hellip;</span>
+            }
+            else if (_colStoreLocations.Count > 0)
+            {
+                <span>@_colStoreLocations.Count stores found near @ShortAddress(_currentLocation)</span>
+            }
+            else
+            {
+                <span>Find stores near any address</span>
+            }
+        </p>
+    </div>
+</div>
+<div class="map-container">
+    <AzureMap Id="map" CameraOptions="new CameraOptions { Zoom = 14, MinZoom = 1, MaxZoom = 20 }"
+              StyleOptions="new StyleOptions { ShowLogo = false, ShowFeedbackLink = false }"
+              EventActivationFlags="MapEventActivationFlags.None().Enable(MapEventType.Ready)" OnReady="OnMapReady"/>
+
+    <div class="search-panel">
+        <div class="search-bar">
+            <SfTextBox Placeholder="Search a location..." @bind-Value="_currentLocation"
+                       CssClass="search-input"/>
+            @if (_searching)
+            {
+                <div class="search-btn searching">
+                    <div class="search-spinner"></div>
+                </div>
+            }
+            else
+            {
+                <button class="search-btn" @onclick="SearchAsync">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                         stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="11" cy="11" r="8"/>
+                        <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                    </svg>
+                </button>
+            }
         </div>
+
         @if (_geolocationError)
         {
-            <div class="alert alert-warning alert-sm p-2 mt-1 mb-0" role="alert" style="font-size:12px;">
-                Location access denied. Enter an address to search.
+            <div class="geo-warning">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                     stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                     style="flex-shrink:0;">
+                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71
+                             3.86a2 2 0 0 0-3.42 0z"/>
+                    <line x1="12" y1="9" x2="12" y2="13"/>
+                    <line x1="12" y1="17" x2="12.01" y2="17"/>
+                </svg>
+                <span>Location access denied. Enter an address to search.</span>
             </div>
         }
-        <br />
+
         @if (_colStoreLocations.Count > 0)
         {
-            <SfListView @ref="_storeSearchResultListBox" DataSource="@_colStoreLocations" Height="450px"
-                        CssClass="e-list-template listview-template">
-                <ListViewFieldSettings TValue="StoreSearchResult" Id="LocationName" Text="Text" Child="Child" />
-                <ListViewTemplates TValue="StoreSearchResult">
-                    <Template>
-                        @{
-                            var currentData = (StoreSearchResult)context;
-                            <div class="e-list-wrapper e-list-avatar e-list-multi-line">
-                                <span class="e-avatar">
-                                    <span class="oi oi-globe"></span>
-                                </span>
-                                <span class="e-list-item-header">@currentData.LocationName</span>
-                                <span class="e-list-item-header">@currentData.LocationAddress</span>
-                                <span class="e-list-content">
-                                    @FormatDistance(currentData.Distance)
-                                </span>
+            <div class="results-list-wrapper">
+                <div class="results-list">
+                    @foreach (var store in _colStoreLocations)
+                    {
+                        <div class="result-item @(IsSelected(store) ? "active" : "")" @onclick="() => OnStoreMarkerClick(store)">
+                            <div class="result-icon">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="var(--pin-store)"
+                                     stroke="none">
+                                    <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75
+                                             7-13c0-3.87-3.13-7-7-7zm0 9.5a2.5 2.5 0 0 1 0-5
+                                             2.5 2.5 0 0 1 0 5z"/>
+                                </svg>
                             </div>
-                        }
-                    </Template>
-                </ListViewTemplates>
-            </SfListView>
+                            <div class="result-content">
+                                <span class="result-name">@store.LocationName</span>
+                                <span class="result-address">@store.LocationAddress</span>
+                            </div>
+                            <span class="result-distance">@FormatDistance(store.Distance)</span>
+                        </div>
+                    }
+                </div>
+                @if (_colStoreLocations.Count > 3)
+                {
+                    <div class="results-list-fade">
+                        <span class="results-list-more">scroll for more</span>
+                    </div>
+                }
+            </div>
         }
-    </div>
-    <div class="col-xs-10 col-sm-10 col-lg-10 col-md-10" style="position:relative;">
-        <AzureMap Id="map" CameraOptions="new CameraOptions { Zoom = 14, MinZoom = 1, MaxZoom = 20 }"
-                  StyleOptions="new StyleOptions { ShowLogo = false, ShowFeedbackLink = false }"
-                  EventActivationFlags="MapEventActivationFlags.None().Enable(MapEventType.Ready)" OnReady="OnMapReady" />
-
-        @if (_showStoreCard && _selectedStore is not null)
+        else if (!_searching)
         {
-            <div class="store-info-backdrop" @onclick="CloseStoreCard"></div>
-            <div class="store-info-card" @onclick:stopPropagation="true">
-                <button type="button" class="store-info-close" @onclick="CloseStoreCard">&times;</button>
-                <p class="store-info-title">@_selectedStore.LocationName</p>
-                <p class="store-info-address">@_selectedStore.LocationAddress</p>
-                <span class="store-info-distance">@FormatDistance(_selectedStore.Distance)</span>
+            <div class="empty-state">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none"
+                     stroke="var(--text-secondary)" stroke-width="1.5"
+                     stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="11" cy="11" r="8"/>
+                    <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                </svg>
+                <span>Search for a location to find nearby stores</span>
             </div>
         }
     </div>
 </div>
 
 <style>
-    .store-info-backdrop {
-        position: absolute;
-        inset: 0;
-        z-index: 5;
-        background: transparent;
+    .page-header {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 0 0 0.9rem;
     }
 
-    .store-info-card {
+    .page-header-icon {
+        flex-shrink: 0;
+        width: 38px;
+        height: 38px;
+        border-radius: var(--radius-md);
+        background: var(--accent-soft);
+        color: var(--accent);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .page-title {
+        margin: 0;
+        font-size: 1.375rem;
+        line-height: 1.2;
+    }
+
+    .page-subtitle {
+        margin: 2px 0 0;
+        font-size: 13px;
+        color: var(--text-secondary);
+    }
+
+    .map-container {
+        position: relative;
+        width: 100%;
+        height: calc(100vh - 124px);
+        max-height: 900px;
+        overflow: hidden;
+        border-radius: var(--radius-lg);
+        border: 1px solid var(--border);
+        box-shadow: var(--shadow-md);
+    }
+
+    .search-panel {
         position: absolute;
         top: 16px;
         left: 16px;
-        z-index: 6;
-        width: 260px;
-        background: #ffffff;
-        border-radius: 8px;
-        box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
-        padding: 14px 16px;
-        font-family: inherit;
+        z-index: 10;
+        width: 340px;
+        max-width: calc(100% - 32px);
     }
 
-    .store-info-close {
-        position: absolute;
-        top: 6px;
-        right: 8px;
+    .search-bar {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        background: var(--surface-elevated, #ffffff);
+        border: 1px solid rgba(30, 41, 59, 0.12);
+        border-radius: var(--radius-lg);
+        box-shadow: var(--shadow-lg);
+        padding: 6px 8px 6px 12px;
+        transition: border-color 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    .search-bar:focus-within {
+        border-color: var(--accent, #2563EB);
+        box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12), var(--shadow-md);
+    }
+
+    .search-bar .search-input,
+    .search-bar .search-input input,
+    .search-bar .e-textbox {
+        border: none !important;
+        box-shadow: none !important;
+        background: transparent !important;
+        font-family: var(--font-body);
+        font-size: 14px;
+        color: var(--text-primary, #1E293B);
+        flex: 1;
+    }
+
+    .search-bar .search-input input::placeholder,
+    .search-bar .e-textbox input::placeholder {
+        color: var(--text-secondary, #94A3B8);
+        font-style: italic;
+    }
+
+    .search-btn {
+        width: 38px;
+        height: 38px;
+        border-radius: 50%;
         border: none;
-        background: transparent;
-        font-size: 18px;
-        line-height: 1;
+        background: var(--accent);
+        color: white;
+        display: flex;
+        align-items: center;
+        justify-content: center;
         cursor: pointer;
-        color: #555;
+        flex-shrink: 0;
+        transition: background 0.15s ease, transform 0.1s ease;
     }
 
-    .store-info-close:hover {
-        color: #000;
+    .search-btn:hover {
+        background: var(--accent-hover);
+        transform: scale(1.05);
     }
 
-    .store-info-title {
-        margin: 0 24px 6px 0;
-        font-size: 16px;
-        font-weight: 600;
+    .search-btn.searching {
+        cursor: default;
+        pointer-events: none;
     }
 
-    .store-info-address {
-        margin: 0 0 8px 0;
+    .search-spinner {
+        width: 18px;
+        height: 18px;
+        border: 2.5px solid rgba(255, 255, 255, 0.3);
+        border-top-color: white;
+        border-radius: 50%;
+        animation: spin 0.7s linear infinite;
+    }
+
+    @@keyframes spin {
+        to {
+            transform: rotate(360deg);
+        }
+    }
+
+    .geo-warning {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-top: 8px;
+        background: #FEF3C7;
+        border: 1px solid var(--warning);
+        border-radius: var(--radius-md);
+        padding: 8px 12px;
         font-size: 13px;
-        color: #444;
+        color: #92400E;
     }
 
-    .store-info-distance {
-        font-size: 12px;
-        color: #1A73AA;
+    .results-list-wrapper {
+        position: relative;
+        margin-top: 4px;
+    }
+
+    .results-list {
+        background: var(--surface-elevated, #ffffff);
+        border: 1px solid rgba(30, 41, 59, 0.12);
+        border-top: none;
+        border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+        box-shadow: var(--shadow-lg);
+        max-height: 40vh;
+        overflow-y: auto;
+    }
+
+    .results-list::-webkit-scrollbar {
+        width: 4px;
+    }
+
+    .results-list::-webkit-scrollbar-thumb {
+        background: #94A3B8;
+        border-radius: 2px;
+    }
+
+    .results-list-fade {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        height: 48px;
+        display: flex;
+        align-items: flex-end;
+        justify-content: center;
+        padding-bottom: 6px;
+        background: linear-gradient(to bottom, transparent, rgba(255,255,255,0.95) 65%);
+        border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+        pointer-events: none;
+    }
+
+    .results-list-more {
+        font-family: var(--font-mono);
+        font-size: 10px;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        color: var(--text-secondary);
+        opacity: 0.85;
+    }
+
+    .result-item {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 12px 16px;
+        cursor: pointer;
+        border-bottom: 1px solid var(--border);
+        transition: background 0.15s ease;
+    }
+
+    .result-item:last-child {
+        border-bottom: none;
+    }
+
+    .result-item:hover {
+        background: var(--accent-soft);
+    }
+
+    .result-item.active {
+        background: var(--accent-soft);
+        border-left: 3px solid var(--accent);
+        padding-left: 13px;
+    }
+
+    .result-icon {
+        flex-shrink: 0;
+        width: 32px;
+        height: 32px;
+        border-radius: 50%;
+        background: #FEE2E2;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .result-content {
+        flex: 1;
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .result-name {
         font-weight: 600;
+        font-size: 14px;
+        color: var(--text-primary);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .result-address {
+        font-size: 12px;
+        color: var(--text-secondary);
+        line-height: 1.4;
+        word-break: break-word;
+    }
+
+    .result-distance {
+        flex-shrink: 0;
+        align-self: flex-start;
+        font-size: 11px;
+        font-family: var(--font-mono);
+        font-weight: 500;
+        color: var(--text-secondary);
+        white-space: nowrap;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 999px;
+        padding: 2px 8px;
+    }
+
+    .empty-state {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 8px;
+        margin-top: 8px;
+        padding: 24px;
+        background: var(--surface-elevated, #ffffff);
+        border: 1px solid var(--border, #E2E8F0);
+        border-top: none;
+        border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+        box-shadow: var(--shadow-md);
+        font-size: 13px;
+        color: var(--text-secondary);
+        text-align: center;
     }
 
     .user-location-marker-container {
@@ -145,11 +410,23 @@
         align-items: center;
     }
 
+    @@media (max-width: 480px) {
+        .page-header {
+            padding-bottom: 0.7rem;
+        }
+
+        .search-panel {
+            top: 10px;
+            left: 10px;
+            width: calc(100% - 20px);
+        }
+    }
+
     .user-location-pulse {
         position: absolute;
         width: 32px;
         height: 32px;
-        background-color: rgba(26, 115, 170, 0.3);
+        background-color: rgba(37, 99, 235, 0.25);
         border-radius: 50%;
         animation: pulse 2s infinite ease-in-out;
     }
@@ -158,10 +435,10 @@
         position: relative;
         width: 16px;
         height: 16px;
-        background-color: #1A73AA;
-        border: 2px solid #FFFFFF;
+        background-color: #2563EB;
+        border: 2.5px solid #FFFFFF;
         border-radius: 50%;
-        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
     }
 
     @@keyframes pulse {
@@ -175,18 +452,28 @@
             opacity: 0;
         }
     }
+
+    @@keyframes storePulse {
+        0% {
+            transform: scale(0.6);
+            opacity: 0.35;
+        }
+
+        100% {
+            transform: scale(1.7);
+            opacity: 0;
+        }
+    }
 </style>
 
 @code {
     private MapEventArgs? _myMap;
-    private SfListView<StoreSearchResult>? _storeSearchResultListBox;
     private List<StoreSearchResult> _colStoreLocations = [];
     private Coordinate _currentCoordinate = new();
     private string _currentLocation = string.Empty;
     private bool _searching;
     private bool _geolocationError;
     private StoreSearchResult? _selectedStore;
-    private bool _showStoreCard;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -236,7 +523,10 @@
 
     private async Task SearchAsync()
     {
+        await JS.InvokeVoidAsync("mapHelpers.closeStorePopup");
+
         _searching = true;
+        _selectedStore = null;
         StateHasChanged();
 
         _colStoreLocations = [];
@@ -260,62 +550,96 @@
                 options.Zoom = 14;
             });
 
-            await _myMap.Map.ClearHtmlMarkersAsync();
-
-            if (_currentCoordinate.Latitude != 0 || _currentCoordinate.Longitude != 0)
-            {
-                var homeMarker = new HtmlMarker(
-                    new HtmlMarkerOptions
-                    {
-                        Position = new AzureMapsControl.Components.Atlas.Position(
-                            _currentCoordinate.Longitude, _currentCoordinate.Latitude),
-                        Draggable = false,
-                        HtmlContent = BuildUserLocationHtmlContent(),
-                        Visible = true
-                    });
-
-                await _myMap.Map.AddHtmlMarkersAsync(homeMarker);
-            }
-
-            for (var i = 0; i < _colStoreLocations.Count; i++)
-            {
-                var store = _colStoreLocations[i];
-                var storeMarker = new HtmlMarker(
-                    new HtmlMarkerOptions
-                    {
-                        Position = new AzureMapsControl.Components.Atlas.Position(
-                            store.LocationLongitude, store.LocationLatitude),
-                        Draggable = false,
-                        HtmlContent = BuildStorePinHtmlContent($"storePinShadow-{i}")
-                    },
-                    HtmlMarkerEventActivationFlags.None().Enable(HtmlMarkerEventType.Click));
-
-                storeMarker.OnClick += _ => OnStoreMarkerClick(store);
-
-                await _myMap.Map.AddHtmlMarkersAsync(storeMarker);
-            }
+            await RenderMarkersAsync();
         }
+    }
+
+    private async Task RenderMarkersAsync()
+    {
+        if (_myMap == null)
+        {
+            return;
+        }
+
+        await _myMap.Map.ClearHtmlMarkersAsync();
+
+        if (_currentCoordinate.Latitude != 0 || _currentCoordinate.Longitude != 0)
+        {
+            var homeMarker = new HtmlMarker(
+                new HtmlMarkerOptions
+                {
+                    Position = new AzureMapsControl.Components.Atlas.Position(
+                        _currentCoordinate.Longitude, _currentCoordinate.Latitude),
+                    Draggable = false,
+                    HtmlContent = BuildUserLocationHtmlContent(),
+                    Visible = true
+                });
+
+            await _myMap.Map.AddHtmlMarkersAsync(homeMarker);
+        }
+
+        var placedPositions = new List<(double Latitude, double Longitude)>();
+
+        for (var i = 0; i < _colStoreLocations.Count; i++)
+        {
+            var store = _colStoreLocations[i];
+            var (latitude, longitude) = ResolveOverlap(
+                placedPositions, store.LocationLatitude, store.LocationLongitude);
+            placedPositions.Add((latitude, longitude));
+
+            var storeMarker = new HtmlMarker(
+                new HtmlMarkerOptions
+                {
+                    Position = new AzureMapsControl.Components.Atlas.Position(longitude, latitude),
+                    Draggable = false,
+                    HtmlContent = BuildStorePinHtmlContent($"storePinShadow-{i}", IsSelected(store))
+                },
+                HtmlMarkerEventActivationFlags.None().Enable(HtmlMarkerEventType.Click));
+
+            storeMarker.OnClick += _ => OnStoreMarkerClick(store);
+
+            await _myMap.Map.AddHtmlMarkersAsync(storeMarker);
+        }
+    }
+
+    private static (double Latitude, double Longitude) ResolveOverlap(
+        ICollection<(double Latitude, double Longitude)> placed, double latitude, double longitude)
+    {
+        const double threshold = 0.00035; // a few screen pixels apart at typical city zoom
+        const double step = 0.00045;
+
+        while (placed.Any(p =>
+                   Math.Abs(p.Latitude - latitude) < threshold && Math.Abs(p.Longitude - longitude) < threshold))
+        {
+            latitude += step;
+            longitude += step;
+        }
+
+        return (latitude, longitude);
     }
 
     private void OnStoreMarkerClick(StoreSearchResult store)
     {
-        _ = InvokeAsync(() =>
+        _ = InvokeAsync(async () =>
         {
             _selectedStore = store;
-            _showStoreCard = true;
+            await RenderMarkersAsync();
             StateHasChanged();
+
+            await JS.InvokeVoidAsync(
+                "mapHelpers.openStorePopup",
+                store.LocationLongitude,
+                store.LocationLatitude,
+                store.LocationName,
+                store.LocationAddress,
+                FormatDistance(store.Distance));
         });
     }
 
-    private void CloseStoreCard()
-    {
-        _ = InvokeAsync(() =>
-        {
-            _showStoreCard = false;
-            _selectedStore = null;
-            StateHasChanged();
-        });
-    }
+    private bool IsSelected(StoreSearchResult store) => ReferenceEquals(_selectedStore, store);
+
+    private static string ShortAddress(string address) =>
+        string.IsNullOrWhiteSpace(address) ? address : address.Split(',')[0].Trim();
 
     private static string FormatDistance(double distanceInKm)
     {
@@ -333,15 +657,30 @@
         "<div class='user-location-dot'></div>" +
         "</div>";
 
-    private static string BuildStorePinHtmlContent(string filterId) =>
-        "<div style='cursor:pointer;width:30px;height:37px;transform-origin:bottom center;transition:transform .15s ease-out;' " +
-        "onmouseover='this.style.transform=\"scale(1.15)\"' onmouseout='this.style.transform=\"scale(1)\"'>" +
-        "<svg width='30' height='37' viewBox='0 0 30 37' style='overflow:visible' xmlns='http://www.w3.org/2000/svg'>" +
-        $"<defs><filter id='{filterId}' x='-60%' y='-20%' width='220%' height='170%'>" +
-        "<feDropShadow dx='0' dy='1.5' stdDeviation='1.4' flood-color='#000000' flood-opacity='0.35'/>" +
-        "</filter></defs>" +
-        $"<path filter='url(#{filterId})' d='M15,1 C7.82,1 2,6.82 2,14 C2,22.6 15,37 15,37 C15,37 28,22.6 28,14 C28,6.82 22.18,1 15,1 Z' fill='#E53935' stroke='#B71C1C' stroke-width='1'/>" +
-        "<circle cx='15' cy='14' r='5.6' fill='#FFFFFF'/>" +
-        "</svg></div>";
+    private static string BuildStorePinHtmlContent(string filterId, bool isSelected = false)
+    {
+        var fill = isSelected ? "var(--accent)" : "var(--pin-store)";
+        var stroke = isSelected ? "var(--accent-hover)" : "#DC2626";
+        var baseScale = isSelected ? "1.12" : "1";
+        var hoverScale = isSelected ? "1.28" : "1.15";
+        var pulseRing = isSelected
+            ? "<div style='position:absolute;inset:-6px;border-radius:50%;background:var(--accent);" +
+              "opacity:.18;animation:storePulse 1.6s ease-out infinite;'></div>"
+            : string.Empty;
+
+        return
+            $"<div style='position:relative;cursor:pointer;width:30px;height:37px;transform-origin:bottom center;" +
+            $"transform:scale({baseScale});transition:transform .15s ease-out;' " +
+            $"onmouseover=\"this.style.transform='scale({hoverScale})'\" " +
+            $"onmouseout=\"this.style.transform='scale({baseScale})'\">" +
+            pulseRing +
+            "<svg width='30' height='37' viewBox='0 0 30 37' style='position:relative;overflow:visible' xmlns='http://www.w3.org/2000/svg'>" +
+            $"<defs><filter id='{filterId}' x='-60%' y='-20%' width='220%' height='170%'>" +
+            "<feDropShadow dx='0' dy='1.5' stdDeviation='1.4' flood-color='#000000' flood-opacity='0.3'/>" +
+            "</filter></defs>" +
+            $"<path filter='url(#{filterId})' d='M15,1 C7.82,1 2,6.82 2,14 C2,22.6 15,37 15,37 C15,37 28,22.6 28,14 C28,6.82 22.18,1 15,1 Z' fill='{fill}' stroke='{stroke}' stroke-width='1'/>" +
+            "<circle cx='15' cy='14' r='5.6' fill='#FFFFFF'/>" +
+            "</svg></div>";
+    }
 
 }

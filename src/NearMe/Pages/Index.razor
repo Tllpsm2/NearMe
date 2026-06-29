@@ -74,7 +74,7 @@
                     <line x1="12" y1="9" x2="12" y2="13"/>
                     <line x1="12" y1="17" x2="12.01" y2="17"/>
                 </svg>
-                <span>Location access denied. Enter an address to search.</span>
+                <span>@(_geolocationErrorMessage ?? "Location access denied. Enter an address to search.")</span>
             </div>
         }
 
@@ -473,6 +473,7 @@
     private string _currentLocation = string.Empty;
     private bool _searching;
     private bool _geolocationError;
+    private string? _geolocationErrorMessage;
     private StoreSearchResult? _selectedStore;
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
@@ -481,37 +482,42 @@
         {
             try
             {
-                var latitude = await JS.InvokeAsync<double>(
-                    "eval",
-                    "new Promise((resolve, reject) => navigator.geolocation.getCurrentPosition(p => resolve(p.coords.latitude), e => reject(e.message)))");
-                var longitude = await JS.InvokeAsync<double>(
-                    "eval",
-                    "new Promise((resolve, reject) => navigator.geolocation.getCurrentPosition(p => resolve(p.coords.longitude), e => reject(e.message)))");
+                var result = await JS.InvokeAsync<GeolocationResult>("mapHelpers.getCurrentPosition");
 
-                if (latitude != 0 || longitude != 0)
+                if (result?.Ok != true)
                 {
-                    _currentCoordinate = new Coordinate
-                    {
-                        Latitude = latitude,
-                        Longitude = longitude
-                    };
+                    _geolocationError = true;
+                    _geolocationErrorMessage = result?.Message
+                        ?? "Could not obtain location.";
+                    return;
+                }
 
-                    var reverseResult = await Service.GeocodeReverse(_currentCoordinate);
-                    var freeformAddress = reverseResult?.Addresses?[0]?.Address?.FreeformAddress;
+                _currentCoordinate = new Coordinate
+                {
+                    Latitude = result.Latitude ?? 0,
+                    Longitude = result.Longitude ?? 0
+                };
 
-                    if (freeformAddress != null)
-                    {
-                        _currentLocation = freeformAddress;
-                        await SearchAsync();
-                    }
+                var reverseResult = await Service.GeocodeReverse(_currentCoordinate);
+                var freeformAddress = reverseResult?.Addresses is { Count: > 0 }
+                    ? reverseResult.Addresses[0].Address?.FreeformAddress
+                    : null;
+
+                if (freeformAddress != null)
+                {
+                    _currentLocation = freeformAddress;
+                    await SearchAsync();
                 }
             }
-            catch
+            catch (Exception ex)
             {
                 _geolocationError = true;
+                _geolocationErrorMessage = $"JS Interop Error: {ex.GetType().Name}: {ex.Message}";
             }
-
-            StateHasChanged();
+            finally
+            {
+                StateHasChanged();
+            }
         }
     }
 
@@ -681,6 +687,15 @@
             $"<path filter='url(#{filterId})' d='M15,1 C7.82,1 2,6.82 2,14 C2,22.6 15,37 15,37 C15,37 28,22.6 28,14 C28,6.82 22.18,1 15,1 Z' fill='{fill}' stroke='{stroke}' stroke-width='1'/>" +
             "<circle cx='15' cy='14' r='5.6' fill='#FFFFFF'/>" +
             "</svg></div>";
+    }
+
+    private sealed class GeolocationResult
+    {
+        public bool Ok { get; set; }
+        public double? Latitude { get; set; }
+        public double? Longitude { get; set; }
+        public string? Code { get; set; }
+        public string? Message { get; set; }
     }
 
 }

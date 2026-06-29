@@ -131,5 +131,52 @@ globalThis.mapHelpers = {
             this._popup.close();
             this._popup = null;
         }
+    },
+
+    getCurrentPosition() {
+        var self = this;
+        return (async function () {
+            if (!navigator.geolocation) {
+                    return { ok: false, code: 'UNSUPPORTED', message: 'Geolocation is not supported in this browser.' };
+            }
+            if (navigator.permissions && navigator.permissions.query) {
+                try {
+                    var status = await navigator.permissions.query({ name: 'geolocation' });
+                    if (status.state === 'denied') {
+                        return {
+                            ok: false,
+                            code: 'PERMISSION_DENIED_CACHED',
+                            message: 'Location permission was previously denied. Enable it in site settings (lock icon in the address bar) and reload the page.'
+                        };
+                    }
+                } catch (e) {
+                    // permissions.query can throw for 'geolocation' on some browsers; fall through.
+                }
+            }
+            return new Promise(function (resolve) {
+                navigator.geolocation.getCurrentPosition(
+                    function (p) {
+                        resolve({
+                            ok: true,
+                            latitude: p.coords.latitude,
+                            longitude: p.coords.longitude
+                        });
+                    },
+                    function (e) {
+                        var messages = {
+                            1: 'Location permission denied by the user.',
+                            2: 'Location is currently unavailable (no GPS or network signal).',
+                            3: 'Timed out while obtaining location.'
+                        };
+                        resolve({
+                            ok: false,
+                            code: 'POSITION_ERROR_' + e.code,
+                            message: messages[e.code] || (e.message || 'Unknown geolocation error.')
+                        });
+                    },
+                    { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 }
+                );
+            });
+        })();
     }
 };
